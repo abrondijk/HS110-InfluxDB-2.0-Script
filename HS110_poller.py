@@ -1,68 +1,92 @@
 import asyncio
-from kasa import Discover, SmartPlug
-import sys
-from time import sleep
-from influxdb_client import InfluxDBClient, WriteApi, WriteOptions
-from pprint import pformat as pf
-
-
-def on_exit(db_client: InfluxDBClient, write_api: WriteApi):
-    """Close clients after terminate a script.
-
-    :param db_client: InfluxDB client
-    :param write_api: WriteApi
-    :return: nothing
-    """
-    write_api.__del__()
-    db_client.__del__()
+from kasa import SmartPlug
+from influxdb_client import InfluxDBClient, WriteOptions
+import yaml
 
 
 async def main():
-    if len(sys.argv) == 0:
-        print("Argument missing. Usage:")
-        print("HS110_poller.py <broadcast ip>")
+    read_config()
 
-    broadcast_ip = sys.argv[1]
+    if len(config['sockets']) == 0:
+        print("Faulty config, no sockets defined")
+        exit()
 
-    devices = await Discover.discover(target=broadcast_ip)
+    devices = []
+
+    for addr in config['sockets']:
+        devices.append(SmartPlug(addr))
+
+    device_names = []
+    device_power = []
+
+    device_num = len(devices)
+
+    client = InfluxDBClient(url="http://{}:{}".format(config['influx_db']['server_ip'], config['influx_db']['server_port']),
+                            token=config['influx_db']['token'], org=config['influx_db']['org'],
+                            debug=False)
+
+    if device_num != 0:
+        device_names, device_power = await get_device_properties(devices)
+    else:
+        print("No devices found")
+        exit()
+
+    influx_data = []
+
+    for i in range(0, device_num):
+        influx_data.append(line_protocol(device_names[i], device_power[i]))
+
+    write_to_influx(client, influx_data)
+
+
+async def get_device_properties(devices):
+    """Gets the names and power in miliwatts from the devices
+    :param devices: array of devices
+    :return: array of device names and array of power in mW
+    """
 
     # Create empty arrays to store potential data
     device_names = []
     device_power = []
 
-    sleep(30)
+    for device in devices:
+        await device.update()
+        power = await device.get_emeter_realtime()
 
-    for addr, dev in devices.items():
-        plug = SmartPlug(addr)
-        await plug.update()
-        power = await plug.get_emeter_realtime()
-        device_names.append(dev.alias)
+        # Store the name of the device
+        device_names.append(device.alias)
+
+        # Store the measured power in miliwatts
         device_power.append(power['power_mw'])
-        print(dev.alias)
+        print(device.alias)
         print(power['power_mw'])
 
-
-def on_exit(db_client: InfluxDBClient, write_api: WriteApi):
-    """Close clients after terminate a script
-    :param db_client: InfluxDB client
-    :param write_api: WriteApi
-    :return: nothing
-    """
-    write_api.close()
-    db_client.close()
+    return device_names, device_power
 
 
-def line_protocol(temperature):
+def line_protocol(device_name, device_power):
     """Create a InfluxDB line protocol with structure:
 
-        iot_sensor,hostname=mine_sensor_12,type=temperature value=68
+        homelab_power,hostname=device_name,type=power value=68
 
-    :param temperature: the sensor temperature
+    :param device_name: the device name
+    :param device_power: the socket power
     :return: Line protocol to write into InfluxDB
     """
 
-    import socket
-    return 'iot_sensor,hostname={},type=temperature value={}'.format(socket.gethostname(), temperature)
+    return 'homelab_power,hostname={},type=power value={}'.format(device_name, device_power)
+
+
+def read_config():
+    with open(r'./config.yml') as file:
+        global config
+        config = yaml.load(file, Loader=yaml.FullLoader)
+
+
+def write_to_influx(client, line_data):
+    write_api = client.write_api(write_options=WriteOptions(batch_size=2))
+
+    print(write_api.write(config['influx_db']['bucket'], config['influx_db']['org'], line_data))
 
 
 if __name__ == "__main__":
