@@ -65,7 +65,7 @@ def line_protocol(device_name, device_power):
     :return: Line protocol to write into InfluxDB
     """
 
-    return 'homelab_power,hostname={},type=power value={}'.format(device_name, device_power)
+    return 'homelab_power,hostname={} power={}'.format(device_name, device_power)
 
 
 def read_config():
