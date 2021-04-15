@@ -24,6 +24,6 @@ Because crontab does not go down to sub-minute resolutions, the second line is a
 
 ```
 # Need these to run on 30-sec boundaries, keep commands in sync.
-* * * * *              /path/to/script/HS11_poller.py >/dev/null 2>&1
-* * * * * ( sleep 30 ; /path/to/script/HS11_poller.py >/dev/null 2>&1 )
+* * * * *              /usr/bin/python3 /path/to/script/HS11_poller.py >/dev/null 2>&1
+* * * * * ( sleep 30 ; /usr/bin/python3 /path/to/script/HS11_poller.py >/dev/null 2>&1 )
 ```
