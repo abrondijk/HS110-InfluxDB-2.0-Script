@@ -74,6 +74,8 @@ def line_protocol(device_name, device_power):
     :return: Line protocol to write into InfluxDB
     """
 
+    # device_power comes in miliwatts, conversion to watts
+    device_power /= 1000
     return 'homelab_power,hostname={},type=power value={}'.format(device_name, device_power)
 
 
