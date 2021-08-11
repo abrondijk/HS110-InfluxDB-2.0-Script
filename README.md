@@ -1,6 +1,11 @@
 # HS110-InfluxDB-2.0-Script
 This is meant to be a simple script that polls the power usage of the TP-Link HS110 Smart socker and stores the information in InfluxDB 2.0
 
+This sceipt requires the following python packages:
+```
+python3 -m pip install pyyaml 'influxdb-client[ciso]' python-kasa --pre
+```
+
 This script expects a yaml config file. Below is an example:
 
 ```yaml
@@ -27,3 +32,4 @@ Because crontab does not go down to sub-minute resolutions, the second line is a
 * * * * *              /usr/bin/python3 /path/to/script/HS11_poller.py >/dev/null 2>&1
 * * * * * ( sleep 30 ; /usr/bin/python3 /path/to/script/HS11_poller.py >/dev/null 2>&1 )
 ```
+When running the script through cron, it might not be able to find it's config with a relative path. If so, simply change the line where it opens the config file to an absolute path.
